@@ -23,3 +23,8 @@ pulse_backend.egg-info/SOURCES.txt
 pulse_backend.egg-info/dependency_links.txt
 pulse_backend.egg-info/requires.txt
 pulse_backend.egg-info/top_level.txt
+tests/test_auth_flow.py
+tests/test_foods.py
+tests/test_meal_crud.py
+tests/test_routes.py
+tests/test_routes_basic.py

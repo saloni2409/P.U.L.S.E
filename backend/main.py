@@ -1,8 +1,8 @@
 """P.U.L.S.E FastAPI Application"""
 
-from app.core.database import init_db
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer # Import HTTPBearer
 from app.core.database import init_db
 from app.core.settings import settings
 from app.routes import router as auth_router
@@ -11,6 +11,16 @@ from app.routes.nutrition import router as nutrition_router
 from app.routes.foods import router as foods_router
 from app.routes.meals_ai import router as meals_ai_router
 
+# Define the security scheme
+security_schemes = {
+    "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Enter your JWT token in the format 'Bearer <token>'"
+    }
+}
+
 # Initialize database
 init_db()
 
@@ -18,7 +28,13 @@ init_db()
 app = FastAPI(
     title="P.U.L.S.E API",
     description="Personal Unified Lifestyle & Sustenance Engine",
-    version="0.3.0"
+    version="0.3.0",
+    openapi_extra={
+        "components": {
+            "securitySchemes": security_schemes
+        },
+        "security": [{"BearerAuth": []}]
+    }
 )
 
 # Add CORS middleware
