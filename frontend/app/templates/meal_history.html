@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Meal History</h5>
+                <a href="/api/meals/" class="btn btn-sm btn-primary">Log New Meal</a>
+            </div>
+            <div class="card-body">
+                <div id="mealsList" class="list-group">
+                    <p class="text-muted">Loading meal history...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadMeals() {
+        try {
+            const response = await fetch('/api/meals/list');
+            const data = await response.json();
+            const mealsList = document.getElementById('mealsList');
+            
+            if (data.length === 0) {
+                mealsList.innerHTML = '<p class="text-muted">No meals logged yet</p>';
+                return;
+            }
+            
+            mealsList.innerHTML = data.map(meal => `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">${meal.meal_type}</h6>
+                            <p class="mb-1">${meal.meal_description}</p>
+                            <small class="text-muted">${meal.meal_date} ${meal.meal_time || ''}</small>
+                        </div>
+                        <div class="text-end">
+                            <p class="mb-0"><strong>${Math.round(meal.meal_items.reduce((sum, item) => sum + (item.calories || 0), 0))} kcal</strong></p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading meals:', error);
+            document.getElementById('mealsList').innerHTML = '<p class="text-danger">Error loading meals</p>';
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', loadMeals);
+</script>
+{% endblock %}

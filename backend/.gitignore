@@ -1,0 +1,17 @@
+# Environments
+.env
+.venv
+venv/
+*.pyc
+
+# Databases
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db

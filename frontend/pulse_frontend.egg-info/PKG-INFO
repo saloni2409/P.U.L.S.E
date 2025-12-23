@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: pulse-frontend
+Version: 0.1.0
+Requires-Python: <3.13,>=3.9
+Requires-Dist: starlette==0.27.0
+Requires-Dist: jinja2==3.1.2
+Requires-Dist: aiofiles==23.2.1
+Requires-Dist: httpx==0.25.2
+Requires-Dist: python-dotenv==1.0.0
+Requires-Dist: uvicorn[standard]==0.24.0
+Requires-Dist: itsdangerous==2.1.2

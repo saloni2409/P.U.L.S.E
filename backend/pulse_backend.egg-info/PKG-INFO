@@ -1,0 +1,17 @@
+Metadata-Version: 2.4
+Name: pulse-backend
+Version: 0.1.0
+Requires-Python: <3.13,>=3.9
+Requires-Dist: fastapi==0.104.1
+Requires-Dist: uvicorn[standard]==0.24.0
+Requires-Dist: sqlalchemy==2.0.30
+Requires-Dist: pydantic==2.7.1
+Requires-Dist: pydantic-settings==2.1.0
+Requires-Dist: python-jose[cryptography]==3.3.0
+Requires-Dist: passlib==1.7.4
+Requires-Dist: bcrypt==3.2.0
+Requires-Dist: python-multipart==0.0.6
+Requires-Dist: httpx==0.25.2
+Requires-Dist: aiofiles==23.2.1
+Requires-Dist: python-dotenv==1.0.0
+Requires-Dist: pydantic[email]

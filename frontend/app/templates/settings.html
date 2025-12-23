@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Settings</h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-3">
+                        <label for="calorieGoal" class="form-label">Daily Calorie Goal</label>
+                        <input type="number" class="form-control" id="calorieGoal" name="daily_calorie_goal" value="2000" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="dietaryPrefs" class="form-label">Dietary Preferences</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="vegetarian" name="vegetarian">
+                            <label class="form-check-label" for="vegetarian">Vegetarian</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="vegan" name="vegan">
+                            <label class="form-check-label" for="vegan">Vegan</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="glutenFree" name="glutenFree">
+                            <label class="form-check-label" for="glutenFree">Gluten-Free</label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 mb-3">Save Settings</button>
+                </form>
+                <button type="button" class="btn btn-danger w-100" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="message" class="alert mt-3 d-none" role="alert"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msgDiv = document.getElementById('message');
+        msgDiv.classList.remove('d-none');
+        msgDiv.classList.add('alert-success');
+        msgDiv.textContent = 'Settings saved successfully';
+    });
+    
+    document.getElementById('logoutBtn').addEventListener('click', async (e) => {
+        e.preventDefault();
+        try {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/api/auth/login';
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Log Your Meal</h5>
+            </div>
+            <div class="card-body">
+                <div class="nav nav-tabs mb-3" id="logTabs" role="tablist">
+                    <button class="nav-link active" id="aiTab" data-bs-toggle="tab" data-bs-target="#aiPanel" type="button">AI Parsing</button>
+                    <button class="nav-link" id="manualTab" data-bs-toggle="tab" data-bs-target="#manualPanel" type="button">Manual Entry</button>
+                </div>
+                
+                <!-- AI Tab -->
+                <div class="tab-content" id="logTabContent">
+                    <div class="tab-pane fade show active" id="aiPanel" role="tabpanel">
+                        <form id="aiMealForm">
+                            <div class="mb-3">
+                                <label for="mealDescription" class="form-label">Describe Your Meal</label>
+                                <textarea class="form-control" id="mealDescription" name="meal_description" rows="4" placeholder="e.g., 'I had scrambled eggs with whole wheat toast and orange juice for breakfast'" required></textarea>
+                                <small class="text-muted">Use natural language - the AI will extract items and nutrients automatically</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="mealType" class="form-label">Meal Type</label>
+                                <select class="form-select" id="mealType" name="meal_type" required>
+                                    <option selected disabled>Select meal type</option>
+                                    <option value="BREAKFAST">Breakfast</option>
+                                    <option value="LUNCH">Lunch</option>
+                                    <option value="DINNER">Dinner</option>
+                                    <option value="SNACK">Snack</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="mealDate" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="mealDate" name="meal_date" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="mealTime" class="form-label">Time (Optional)</label>
+                                <input type="time" class="form-control" id="mealTime" name="meal_time">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">Log Meal with AI</button>
+                        </form>
+                    </div>
+                    
+                    <!-- Manual Tab -->
+                    <div class="tab-pane fade" id="manualPanel" role="tabpanel">
+                        <form id="manualMealForm">
+                            <div class="mb-3">
+                                <label for="manualDescription" class="form-label">Meal Description</label>
+                                <textarea class="form-control" id="manualDescription" name="meal_description" rows="3" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="manualMealType" class="form-label">Meal Type</label>
+                                <select class="form-select" id="manualMealType" name="meal_type" required>
+                                    <option selected disabled>Select meal type</option>
+                                    <option value="BREAKFAST">Breakfast</option>
+                                    <option value="LUNCH">Lunch</option>
+                                    <option value="DINNER">Dinner</option>
+                                    <option value="SNACK">Snack</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="manualDate" class="form-label">Date</label>
+                                <input type="date" class="form-control" id="manualDate" name="meal_date" required>
+                            </div>
+                            
+                            <h6>Items</h6>
+                            <div id="itemsList"></div>
+                            <button type="button" class="btn btn-sm btn-secondary mb-3" id="addItemBtn">Add Item</button>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Log Meal</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="message" class="alert mt-3 d-none" role="alert"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Set today's date as default
+    document.getElementById('mealDate').valueAsDate = new Date();
+    document.getElementById('manualDate').valueAsDate = new Date();
+    
+    // AI Form submission
+    document.getElementById('aiMealForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            meal_description: formData.get('meal_description'),
+            meal_type: formData.get('meal_type'),
+            meal_date: formData.get('meal_date'),
+            meal_time: formData.get('meal_time') || null,
+            auto_enrich: true
+        };
+        
+        try {
+            const response = await fetch('/api/meals/log-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            const msgDiv = document.getElementById('message');
+            
+            if (result.success) {
+                msgDiv.classList.remove('d-none', 'alert-danger');
+                msgDiv.classList.add('alert-success');
+                msgDiv.textContent = result.message;
+                e.target.reset();
+                document.getElementById('mealDate').valueAsDate = new Date();
+                setTimeout(() => window.location.href = '/api/dashboard/', 2000);
+            } else {
+                msgDiv.classList.remove('d-none', 'alert-success');
+                msgDiv.classList.add('alert-danger');
+                msgDiv.textContent = result.error;
+            }
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    });
+</script>
+{% endblock %}

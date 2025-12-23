@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body text-center">
+                <h5 class="card-title">Today's Calories</h5>
+                <h2 id="calorieCount">-</h2>
+                <small class="text-muted">/ 2000 kcal goal</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body text-center">
+                <h5 class="card-title">Protein</h5>
+                <h2 id="proteinCount">-</h2>
+                <small class="text-muted">grams</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body text-center">
+                <h5 class="card-title">Carbs</h5>
+                <h2 id="carbsCount">-</h2>
+                <small class="text-muted">grams</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card mb-3">
+            <div class="card-body text-center">
+                <h5 class="card-title">Fat</h5>
+                <h2 id="fatCount">-</h2>
+                <small class="text-muted">grams</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Today's Meals</h5>
+            </div>
+            <div class="card-body">
+                <div id="mealsList" class="list-group">
+                    <p class="text-muted">Loading meals...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Quick Actions</h5>
+            </div>
+            <div class="card-body">
+                <a href="/api/meals/" class="btn btn-primary w-100 mb-2">Log Meal (AI)</a>
+                <a href="/api/meals/history" class="btn btn-info w-100 mb-2">View History</a>
+                <a href="/api/settings/" class="btn btn-secondary w-100">Settings</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadDailySummary() {
+        try {
+            const response = await fetch('/api/dashboard/daily-summary');
+            const data = await response.json();
+            
+            document.getElementById('calorieCount').textContent = Math.round(data.total_calories);
+            document.getElementById('proteinCount').textContent = Math.round(data.total_protein);
+            document.getElementById('carbsCount').textContent = Math.round(data.total_carbs);
+            document.getElementById('fatCount').textContent = Math.round(data.total_fat);
+        } catch (error) {
+            console.error('Error loading summary:', error);
+        }
+    }
+    
+    document.addEventListener('DOMContentLoaded', loadDailySummary);
+</script>
+{% endblock %}
