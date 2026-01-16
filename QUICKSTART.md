@@ -104,10 +104,37 @@ You should see:
 INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
 ```
 
+## Step 5B: Start Next.js Frontend V2 (Alternative - New Terminal)
+
+The new Next.js frontend is available in `frontendV2/` and provides a modern React experience.
+
+```bash
+# Install dependencies (first time only)
+cd frontendV2
+pnpm install
+
+# Start development server
+pnpm dev
+```
+
+You should see:
+```
+✓ Ready in X.Xs
+- Local:        http://localhost:3000
+```
+
+**Frontend V2 Features:**
+- Modern Next.js 14 with App Router
+- TanStack Query for data fetching
+- TypeScript strict mode
+- Tailwind CSS styling
+- JWT authentication
+
 ## Step 6: Access the Application
 
 Open your browser:
-- **Frontend:** http://localhost:8001
+- **Frontend (Legacy):** http://localhost:8001
+- **Frontend V2 (Next.js):** http://localhost:3000
 - **API Docs:** http://localhost:8000/docs
 
 ## Testing the Application
