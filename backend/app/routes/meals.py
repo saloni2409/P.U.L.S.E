@@ -1,56 +1,21 @@
 """Meal management API routes"""
 
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import date
 from app.core.database import get_db
-from app.core.security import decode_token
+from app.core.security import get_current_user_id
 from app.schemas import (
     MealEntryCreate, MealEntryUpdate, MealEntryResponse,
     MealItemCreate, MealItemUpdate, MealItemResponse
 )
 from app.services.meal_service import MealService
 from app.services.nutrition_service import NutritionService
-from fastapi import Header
+
 
 router = APIRouter(prefix="/api/meals", tags=["meals"])
 
-
-def get_current_user_id(authorization: str = Header(None)) -> str:
-    """
-    Extract user ID from JWT token.
-    
-    Args:
-        authorization: Authorization header
-        
-    Returns:
-        User ID
-        
-    Raises:
-        HTTPException: If token is invalid
-    """
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization header"
-        )
-    
-    try:
-        token = authorization.split(" ")[1]
-    except IndexError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
-        )
-    
-    payload = decode_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    return payload["sub"]
 
 
 @router.post("/log", response_model=MealEntryResponse)

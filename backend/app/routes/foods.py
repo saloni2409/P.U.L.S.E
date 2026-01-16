@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.security import decode_token
+from app.core.security import get_current_user_id
 from app.schemas import FoodDatabaseCreate, FoodDatabaseResponse
 from app.services.nutrition_service import FoodService
 from fastapi import Header
@@ -11,30 +11,6 @@ from fastapi import Header
 router = APIRouter(prefix="/api/foods", tags=["foods"])
 
 
-def get_current_user_id(authorization: str = Header(None)) -> str:
-    """Extract user ID from JWT token."""
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization header"
-        )
-    
-    try:
-        token = authorization.split(" ")[1]
-    except IndexError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
-        )
-    
-    payload = decode_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    return payload["sub"]
 
 
 @router.get("/search", response_model=list[FoodDatabaseResponse])

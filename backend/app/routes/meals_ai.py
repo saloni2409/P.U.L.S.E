@@ -5,38 +5,12 @@ from sqlalchemy.orm import Session
 from datetime import date
 from pydantic import BaseModel
 from app.core.database import get_db
-from app.core.security import decode_token
+from app.core.security import get_current_user_id
 from app.schemas import MealEntryResponse
 from app.services.meal_processing_service import MealProcessingService
 from fastapi import Header
 
 router = APIRouter(prefix="/api/meals-ai", tags=["meals-ai"])
-
-
-def get_current_user_id(authorization: str = Header(None)) -> str:
-    """Extract user ID from JWT token."""
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing authorization header"
-        )
-    
-    try:
-        token = authorization.split(" ")[1]
-    except IndexError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authorization header format"
-        )
-    
-    payload = decode_token(token)
-    if not payload or "sub" not in payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    return payload["sub"]
 
 
 class MealLogRequest(BaseModel):

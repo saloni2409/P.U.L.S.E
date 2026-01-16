@@ -1,6 +1,7 @@
 """Authentication routes"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from app.core.database import get_db
@@ -34,7 +35,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(credentials: TokenRequest, db: Session = Depends(get_db)):
+def login(credentials: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     """
     Login user and get access token.
     

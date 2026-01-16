@@ -1,4 +1,5 @@
 pyproject.toml
+app/__init__.py
 app/routes/auth_routes.py
 app/routes/dashboard_routes.py
 app/routes/meal_routes.py

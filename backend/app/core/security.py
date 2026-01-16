@@ -5,9 +5,37 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from app.core.settings import settings
+from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status
+from typing import Annotated
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+def get_current_user_id(authorization: Annotated[str, Depends(oauth2_scheme)]) -> str:
+    """Extract user ID from JWT token."""
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization header"
+        )
+    
+    try:
+        token = authorization
+    except IndexError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header format"
+        )
+    
+    payload = decode_token(token)
+    if not payload or "sub" not in payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    return payload["sub"]
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
