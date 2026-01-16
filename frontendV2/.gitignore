@@ -2,6 +2,7 @@
 node_modules/
 /.pnp
 .pnp.js
+package-lock.json
 
 # Testing
 /coverage
@@ -12,6 +13,10 @@ node_modules/
 
 # Production
 /build
+dist/
+
+# pnpm
+pnpm-lock.yaml
 
 # Misc
 .DS_Store
@@ -35,7 +40,10 @@ lerna-debug.log*
 *.swp
 *.swo
 *~
+.cache/
 
 # OS
 .DS_Store
 Thumbs.db
+.AppleDouble
+.LSOverride
