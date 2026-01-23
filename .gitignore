@@ -1,3 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
 # Dependencies
 node_modules/
 /.pnp
@@ -12,7 +47,6 @@ package-lock.json
 /out/
 
 # Production
-/build
 dist/
 
 # pnpm
@@ -33,6 +67,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+*.log
 
 # IDE
 .vscode/
@@ -41,9 +76,16 @@ lerna-debug.log*
 *.swo
 *~
 .cache/
+*.sublime-workspace
+*.sublime-project
 
 # OS
 .DS_Store
 Thumbs.db
 .AppleDouble
 .LSOverride
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
