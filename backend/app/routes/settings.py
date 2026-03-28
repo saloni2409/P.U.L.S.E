@@ -1,95 +1,67 @@
-"""User settings routes including Gemini API key management"""
+"""User settings routes for AI provider configuration"""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from app.core.database import get_db
 from app.core.security import get_current_user_id
-from app.services.gemini_key_service import GeminiKeyService
+from app.services.ai_config_service import AIConfigService
 
 router = APIRouter(prefix="/api/user", tags=["settings"])
 
 
 # Pydantic models for request/response
-class SetGeminiKeyRequest(BaseModel):
-    """Request to set Gemini API key"""
-    api_key: str = Field(..., min_length=20, description="Google Gemini API key")
+class SetAIConfigRequest(BaseModel):
+    """Request to set AI provider configuration"""
+    provider_type: str = Field(..., description="GEMINI, OPENAI, ANTHROPIC, LOCAL")
+    api_key: Optional[str] = Field(None, description="API key or token (encrypted)")
+    model_name: Optional[str] = Field(None, description="Model ID (e.g., gpt-4, llama3)")
+    base_url: Optional[str] = Field(None, description="Base URL for local providers")
+    is_active: bool = True
 
 
-class GeminiKeyStatusResponse(BaseModel):
-    """Response for Gemini key status"""
-    has_key: bool
-    last_verified: Optional[str] = None
-    created_at: Optional[str] = None
-    setup_required: bool
+class AIConfigResponse(BaseModel):
+    """General AI configuration response (safe)"""
+    provider_type: str
+    model_name: Optional[str] = None
+    base_url: Optional[str] = None
+    is_active: bool
+    created_at: str
+    updated_at: str
 
 
-class SetGeminiKeyResponse(BaseModel):
-    """Response when setting Gemini key"""
+class SetAIConfigResponse(BaseModel):
+    """Response when setting AI config"""
     success: bool
     message: str
-    last_verified: str
-
-
-class DeleteKeyResponse(BaseModel):
-    """Response when deleting key"""
-    success: bool
-    message: str
-
-
-class VerifyKeyResponse(BaseModel):
-    """Response for key verification"""
-    valid: bool
-    message: str
-    last_verified: Optional[str] = None
+    provider: str
 
 
 # Endpoints
 
-@router.post("/gemini-key", response_model=SetGeminiKeyResponse)
-async def set_gemini_key(
-    request: SetGeminiKeyRequest,
+@router.post("/ai-config", response_model=SetAIConfigResponse)
+async def set_ai_config(
+    request: SetAIConfigRequest,
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
-    Set or update user's Gemini API key.
-    
-    The API key is encrypted before storage and never persisted in plaintext.
-    
-    Security:
-    - Only HTTPS is allowed
-    - User must be authenticated (JWT token)
-    - Key is validated for format
-    - Key is encrypted with AES-256 before storage
-    
-    Args:
-        request: SetGeminiKeyRequest with api_key
-        user_id: Extracted from JWT token
-        db: Database session
-        
-    Returns:
-        SetGeminiKeyResponse with success status
-        
-    Raises:
-        HTTPException: 400 if key is invalid
-        HTTPException: 401 if not authenticated
-        HTTPException: 500 if encryption or storage fails
+    Set or update an AI provider configuration.
     """
     try:
-        result = await GeminiKeyService.set_user_gemini_key(
+        result = await AIConfigService.set_user_config(
             db=db,
             user_id=user_id,
-            api_key=request.api_key
+            provider_type=request.provider_type,
+            api_key=request.api_key,
+            model_name=request.model_name,
+            base_url=request.base_url,
+            is_active=request.is_active
         )
-        return SetGeminiKeyResponse(
-            success=result["success"],
-            message=result["message"],
-            last_verified=result["last_verified"]
-        )
+        return SetAIConfigResponse(**result)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -98,118 +70,64 @@ async def set_gemini_key(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to set API key: {str(e)}"
+            detail=f"Failed to set configuration: {str(e)}"
         )
 
 
-@router.get("/gemini-key/status", response_model=GeminiKeyStatusResponse)
-async def get_gemini_key_status(
+@router.get("/ai-config/active", response_model=Optional[AIConfigResponse])
+async def get_active_ai_config(
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
     """
-    Check if user has a Gemini API key set.
-    
-    This endpoint does NOT return the actual API key.
-    It only indicates whether a key exists and when it was last verified.
-    
-    Args:
-        user_id: Extracted from JWT token
-        db: Database session
-        
-    Returns:
-        GeminiKeyStatusResponse with status information
-        
-    Raises:
-        HTTPException: 401 if not authenticated
+    Get the currently active AI configuration.
     """
-    try:
-        status_info = await GeminiKeyService.get_user_gemini_key_status(
-            db=db,
-            user_id=user_id
-        )
-        return GeminiKeyStatusResponse(**status_info)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to check key status: {str(e)}"
-        )
+    config = await AIConfigService.get_active_config(db, user_id)
+    if not config:
+        return None
+        
+    return AIConfigResponse(
+        provider_type=str(config.provider_type),
+        model_name=config.model_name,
+        base_url=config.base_url,
+        is_active=bool(config.is_active),
+        created_at=config.created_at.isoformat() if config.created_at else "",
+        updated_at=config.updated_at.isoformat() if config.updated_at else ""
+    )
 
 
-@router.delete("/gemini-key", response_model=DeleteKeyResponse)
-async def delete_gemini_key(
+# --- Backward Compatibility Endpoints (for Frontend v2 legacy calls) ---
+
+@router.post("/gemini-key", response_model=SetAIConfigResponse)
+async def set_gemini_key_legacy(
+    request: dict, # Support old {api_key: "..."} format
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    """
-    Delete user's stored Gemini API key.
-    
-    This removes the encrypted key from the database.
-    User will need to set a new key to use chat features.
-    
-    Args:
-        user_id: Extracted from JWT token
-        db: Database session
+    api_key = request.get("api_key")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="api_key required")
         
-    Returns:
-        DeleteKeyResponse with success status
-        
-    Raises:
-        HTTPException: 400 if no key found
-        HTTPException: 401 if not authenticated
-        HTTPException: 500 if deletion fails
-    """
-    try:
-        result = await GeminiKeyService.delete_user_gemini_key(
-            db=db,
-            user_id=user_id
-        )
-        return DeleteKeyResponse(
-            success=result["success"],
-            message=result["message"]
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete API key: {str(e)}"
-        )
+    result = await AIConfigService.set_user_config(
+        db=db,
+        user_id=user_id,
+        provider_type="GEMINI",
+        api_key=api_key
+    )
+    return SetAIConfigResponse(**result)
 
 
-@router.post("/gemini-key/verify", response_model=VerifyKeyResponse)
-async def verify_gemini_key(
+@router.get("/gemini-key/status")
+async def get_gemini_key_status_legacy(
     user_id: str = Depends(get_current_user_id),
     db: Session = Depends(get_db)
 ):
-    """
-    Verify that user's stored Gemini API key is valid.
+    config = await AIConfigService.get_active_config(db, user_id)
+    has_key = config is not None and config.provider_type == "GEMINI"
     
-    This makes a test call to the Gemini API to verify the key works.
-    Updates last_verified_at timestamp if validation succeeds.
-    
-    Args:
-        user_id: Extracted from JWT token
-        db: Database session
-        
-    Returns:
-        VerifyKeyResponse with validation status
-        
-    Raises:
-        HTTPException: 401 if not authenticated
-        HTTPException: 500 if verification fails
-    """
-    try:
-        result = await GeminiKeyService.verify_user_gemini_key(
-            db=db,
-            user_id=user_id
-        )
-        return VerifyKeyResponse(**result)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Verification failed: {str(e)}"
-        )
+    return {
+        "has_key": has_key,
+        "last_verified": config.updated_at.isoformat() if (config and has_key and config.updated_at) else None,
+        "created_at": config.created_at.isoformat() if (config and has_key and config.created_at) else None,
+        "setup_required": not has_key
+    }

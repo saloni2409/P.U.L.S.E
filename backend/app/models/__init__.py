@@ -24,7 +24,7 @@ class User(Base):
     macro_targets = relationship("MacroTargets", back_populates="user", cascade="all, delete-orphan")
     meal_entries = relationship("MealEntry", back_populates="user", cascade="all, delete-orphan")
     daily_summaries = relationship("DailyNutritionSummary", back_populates="user", cascade="all, delete-orphan")
-    gemini_key = relationship("UserGeminiKey", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    ai_configs = relationship("UserAIConfig", back_populates="user", cascade="all, delete-orphan")
 
 
 class MacroTargets(Base):
@@ -141,26 +141,36 @@ class DailyNutritionSummary(Base):
     )
 
 
-class UserGeminiKey(Base):
-    """User's encrypted Google Gemini API key for BYOK (Bring Your Own Key) feature"""
-    __tablename__ = "user_gemini_keys"
+class UserAIConfig(Base):
+    """User's encrypted AI provider configuration (Gemini, OpenAI, Claude, Local, etc.)"""
+    __tablename__ = "user_ai_configs"
     
-    key_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String, ForeignKey("users.user_id"), unique=True, nullable=False, index=True)
+    config_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
     
-    # Encrypted key stored at rest - never stored in plaintext
-    encrypted_key = Column(Text, nullable=False)
+    provider_type = Column(String, nullable=False, default="GEMINI")  # GEMINI, OPENAI, ANTHROPIC, LOCAL
+    model_name = Column(String, nullable=True)  # e.g., gemini-1.5-pro, gpt-4o, llama3
+    base_url = Column(String, nullable=True)  # For local models (e.g., http://localhost:11434)
+    
+    # Encrypted API key or auth token
+    encrypted_key = Column(Text, nullable=True)
+    
+    is_active = Column(Boolean, default=True)
     
     # Metadata
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    last_verified_at = Column(DateTime, nullable=True)
     
     # Relationships
-    user = relationship("User", back_populates="gemini_key")
+    user = relationship("User", back_populates="ai_configs")
     
+    # Ensure a user has only one config per provider
+    __table_args__ = (
+        UniqueConstraint('user_id', 'provider_type', name='_user_provider_uc'),
+    )
+
     def __repr__(self):
-        return f"<UserGeminiKey user_id={self.user_id}>"
+        return f"<UserAIConfig user_id={self.user_id} provider={self.provider_type}>"
 
 
 class ChatSession(Base):

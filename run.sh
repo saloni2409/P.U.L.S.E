@@ -5,6 +5,10 @@
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Redirect Python bytecode cache away from the source tree
+# Creates a mirrored directory structure in .cache/pycache
+export PYTHONPYCACHEPREFIX="$PROJECT_ROOT/.cache/pycache"
+
 echo "🚀 Starting P.U.L.S.E Development Environment..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 

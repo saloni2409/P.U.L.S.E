@@ -8,8 +8,9 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 
 from app.models import ChatSession, ChatMessage, User
-from app.services.google_ai_service import GoogleAIService
-from app.services.gemini_key_service import GeminiKeyService
+from app.services.ai_factory import AIFactory
+from app.services.base_ai_service import AIChatMessage
+from app.services.ai_config_service import AIConfigService
 
 
 class ChatSessionService:
@@ -114,26 +115,47 @@ class ChatSessionService:
         db.add(user_msg)
         db.commit()
         
-        # Get user's API key
-        api_key = await GeminiKeyService.get_decrypted_user_gemini_key(db, user_id)
-        if not api_key:
+        # Get user's active AI configuration
+        ai_config = await AIConfigService.get_active_config(db, user_id)
+        if not ai_config:
             return {
-                "error": "Please set your Gemini API key in settings",
+                "error": "No active AI configuration found. Please configure Gemini or Local AI in settings.",
+                "session_id": session_id,
+                "state": session.session_state
+            }
+        
+        # Get credential (API Key or Base URL)
+        credential = None
+        if ai_config.provider_type == "LOCAL":
+            credential = ai_config.base_url
+        else:
+            credential = await AIConfigService.get_decrypted_key(db, ai_config)
+            
+        if not credential:
+            return {
+                "error": f"Credential missing for {ai_config.provider_type}. Please update your settings.",
                 "session_id": session_id,
                 "state": session.session_state
             }
         
         try:
-            # Initialize Google AI with user's key
-            ai_service = GoogleAIService(api_key)
+            # Initialize AI Provider via Factory
+            ai_service = AIFactory.get_service(
+                ai_config.provider_type.lower(), 
+                credential, 
+                model_name=ai_config.model_name
+            )
             
-            # Get message history for context
+            # Get message history for context and convert to standardized objects
             history = db.query(ChatMessage).filter(
                 ChatMessage.session_id == session_id
             ).order_by(ChatMessage.created_at).all()
             
             messages = [
-                {"role": msg.role.lower() if msg.role != "SYSTEM" else "user", "content": msg.content}
+                AIChatMessage(
+                    role=msg.role.lower() if msg.role != "SYSTEM" else "user", 
+                    content=msg.content
+                )
                 for msg in history
             ]
             
@@ -172,8 +194,8 @@ class ChatSessionService:
     
     @staticmethod
     async def _handle_collecting_state(
-        ai_service: GoogleAIService,
-        messages: list,
+        ai_service,  # Now accepts any BaseAIService implementation
+        messages: List[AIChatMessage],
         user_message: str,
         session: ChatSession
     ) -> str:
@@ -205,9 +227,9 @@ Your job:
 
 Current conversation:"""
         
-        # Build system message
+        # Build system message using standardized schema
         full_messages = [
-            {"role": "user", "content": system_prompt}
+            AIChatMessage(role="user", content=system_prompt)
         ] + messages
         
         response_text = await ai_service.chat_message(full_messages)
@@ -223,8 +245,9 @@ Return JSON with food items:
 {{"meal_items": [{{"food_name": "", "quantity": 1, "unit": "pieces", "calories": 0}}]}}"""
             
             parsed = await ai_service.parse_meal_description(user_message)
-            if parsed.get("meal_items"):
-                session.parsed_meal_items = parsed["meal_items"]
+            if parsed.meal_items:
+                # Convert Pydantic objects back to dict for JSON database storage
+                session.parsed_meal_items = [item.dict() for item in parsed.meal_items]
                 session.session_state = "CONFIRMING"
         
         return response_text
@@ -355,15 +378,23 @@ Return JSON with food items:
         session.parsed_meal_items = meal_items
         db.commit()
         
-        # Calculate nutrition
-        user = db.query(User).filter(User.user_id == user_id).first()
-        api_key = await GeminiKeyService.get_decrypted_user_gemini_key(db, user_id)
+        # Use AI Config Service to get active configuration
+        ai_config = await AIConfigService.get_active_config(db, user_id)
         
-        if api_key:
-            ai_service = GoogleAIService(api_key)
-            nutrition = await ai_service.get_nutrition_estimate(meal_items)
-            session.nutrition_data = nutrition
-            db.commit()
+        if ai_config:
+            credential = ai_config.base_url if ai_config.provider_type == "LOCAL" else await AIConfigService.get_decrypted_key(db, ai_config)
+            
+            if credential:
+                ai_service = AIFactory.get_service(
+                    ai_config.provider_type.lower(), 
+                    credential, 
+                    model_name=ai_config.model_name
+                )
+                nutrition = await ai_service.get_nutrition_estimate(meal_items)
+                
+                # Store standardized nutrition data
+                session.nutrition_data = nutrition.dict()
+                db.commit()
         
         return {
             "session_id": session_id,
