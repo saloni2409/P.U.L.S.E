@@ -3,6 +3,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.settings import settings
+from google.cloud import firestore
 
 # Create engine
 engine = create_engine(
@@ -27,13 +28,18 @@ def get_db():
     Dependency injection function for database session.
     
     Yields:
-        Database session
+        Database session or Firestore client
     """
-    db = SessionLocal()
-    try:
+    if settings.db_type == "FIRESTORE":
+        from app.repositories.factory import get_firestore_client
+        db = get_firestore_client()
         yield db
-    finally:
-        db.close()
+    else:
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
 
 def init_db():

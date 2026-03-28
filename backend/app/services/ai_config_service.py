@@ -1,40 +1,30 @@
-"""Service for managing user AI configurations with encryption"""
+"""Service for managing user AI configurations with repository abstraction"""
 
 import uuid
 from datetime import datetime
-from typing import Optional, List
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
+from typing import Optional, List, Dict, Any
 
-from app.models import UserAIConfig, User
+from app.repositories.factory import RepositoryFactory
 from app.core.encryption_service import EncryptionService
 from app.core.settings import settings
 
 
 class AIConfigService:
     """
-    Service for managing encrypted AI Provider configurations.
-    
-    SECURITY NOTES:
-    - Keys/Tokens are encrypted at rest using AES-256 (via Fernet)
-    - Sensitive data is only decrypted in memory when needed
-    - Master encryption key must be set in environment variables
+    Service for managing AI Provider configurations via repositories.
+    Supports SQL (Postgres/SQLite) and NoSQL (Firestore).
     """
     
     @staticmethod
     def _get_encryption_service() -> EncryptionService:
         """Get encryption service with master key from settings"""
         if not settings.encryption_key:
-            raise ValueError(
-                "ENCRYPTION_KEY not configured. "
-                "Generate one with: python -c 'from cryptography.fernet import Fernet; "
-                "print(Fernet.generate_key().decode())'"
-            )
+            raise ValueError("ENCRYPTION_KEY not configured.")
         return EncryptionService(settings.encryption_key)
     
     @staticmethod
     async def set_user_config(
-        db: Session,
+        db: Any,
         user_id: str,
         provider_type: str,
         api_key: Optional[str] = None,
@@ -42,9 +32,8 @@ class AIConfigService:
         base_url: Optional[str] = None,
         is_active: bool = True
     ) -> dict:
-        """
-        Set or update user's AI configuration.
-        """
+        """Set or update user's AI configuration using repository"""
+        repo = RepositoryFactory.get_ai_config_repository(db)
         provider_type = provider_type.upper()
         
         # Encrypt key if provided
@@ -57,42 +46,23 @@ class AIConfigService:
                 raise ValueError(f"Failed to encrypt key: {str(e)}")
         
         try:
-            # Check if user exists
-            user = db.query(User).filter(User.user_id == user_id).first()
-            if not user:
-                raise ValueError(f"User {user_id} not found")
-            
             # If this is set to active, deactivate other configs for this user
             if is_active:
-                db.query(UserAIConfig).filter(
-                    UserAIConfig.user_id == user_id
-                ).update({"is_active": False})
+                repo.deactivate_other_configs(user_id, provider_type)
             
             # Check if config already exists for this provider
-            existing_config = db.query(UserAIConfig).filter(
-                UserAIConfig.user_id == user_id,
-                UserAIConfig.provider_type == provider_type
-            ).first()
+            existing = repo.get_config_by_provider(user_id, provider_type)
             
-            if existing_config:
-                existing_config.encrypted_key = encrypted_key if encrypted_key else existing_config.encrypted_key
-                existing_config.model_name = model_name if model_name else existing_config.model_name
-                existing_config.base_url = base_url if base_url else existing_config.base_url
-                existing_config.is_active = is_active
-                existing_config.updated_at = datetime.utcnow()
-            else:
-                new_config = UserAIConfig(
-                    config_id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    provider_type=provider_type,
-                    model_name=model_name,
-                    base_url=base_url,
-                    encrypted_key=encrypted_key,
-                    is_active=is_active
-                )
-                db.add(new_config)
+            config_data = {
+                "user_id": user_id,
+                "provider_type": provider_type,
+                "is_active": is_active
+            }
+            if encrypted_key: config_data["encrypted_key"] = encrypted_key
+            if model_name: config_data["model_name"] = model_name
+            if base_url: config_data["base_url"] = base_url
             
-            db.commit()
+            result = repo.upsert_config(config_data)
             
             return {
                 "success": True,
@@ -101,38 +71,34 @@ class AIConfigService:
             }
             
         except Exception as e:
-            db.rollback()
             raise Exception(f"Failed to save configuration: {str(e)}")
 
     @staticmethod
-    async def get_active_config(db: Session, user_id: str) -> Optional[UserAIConfig]:
+    async def get_active_config(db: Any, user_id: str) -> Optional[Dict[str, Any]]:
         """Get the currently active AI configuration for a user"""
-        return db.query(UserAIConfig).filter(
-            UserAIConfig.user_id == user_id,
-            UserAIConfig.is_active == True
-        ).first()
+        repo = RepositoryFactory.get_ai_config_repository(db)
+        return repo.get_active_config(user_id)
 
     @staticmethod
-    async def get_decrypted_key(db: Session, config: UserAIConfig) -> Optional[str]:
-        """Decrypt the key from a config object"""
-        if not config.encrypted_key:
+    async def get_decrypted_key(db: Any, config: Dict[str, Any]) -> Optional[str]:
+        """Decrypt the key from a config dictionary"""
+        encrypted_key = config.get("encrypted_key")
+        if not encrypted_key:
             return None
             
         encryption_service = AIConfigService._get_encryption_service()
         try:
-            return encryption_service.decrypt(config.encrypted_key)
+            return encryption_service.decrypt(encrypted_key)
         except Exception as e:
             raise ValueError(f"Failed to decrypt key: {str(e)}")
 
     # --- Backward Compatibility Methods ---
     
     @staticmethod
-    async def get_decrypted_user_gemini_key(db: Session, user_id: str) -> Optional[str]:
+    async def get_decrypted_user_gemini_key(db: Any, user_id: str) -> Optional[str]:
         """Helper for legacy code - gets the active Gemini key"""
-        config = db.query(UserAIConfig).filter(
-            UserAIConfig.user_id == user_id,
-            UserAIConfig.provider_type == "GEMINI"
-        ).first()
+        repo = RepositoryFactory.get_ai_config_repository(db)
+        config = repo.get_config_by_provider(user_id, "GEMINI")
         
         if not config:
             return None

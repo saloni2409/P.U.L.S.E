@@ -7,10 +7,10 @@ from datetime import datetime
 from typing import Optional, List
 from sqlalchemy.orm import Session
 
-from app.models import ChatSession, ChatMessage, User
 from app.services.ai_factory import AIFactory
 from app.services.base_ai_service import AIChatMessage
 from app.services.ai_config_service import AIConfigService
+from app.repositories.factory import RepositoryFactory
 
 
 class ChatSessionService:
@@ -42,33 +42,31 @@ class ChatSessionService:
         Returns:
             Session info with initial greeting
         """
-        # Create session
-        session = ChatSession(
-            session_id=str(uuid.uuid4()),
-            user_id=user_id,
-            meal_type=meal_type,  # Can be None - will be inferred
-            session_state="COLLECTING"
-        )
-        db.add(session)
-        db.commit()
+        # Create session data
+        session_id = str(uuid.uuid4())
+        session_data = {
+            "session_id": session_id,
+            "user_id": user_id,
+            "meal_type": meal_type,
+            "session_state": "COLLECTING"
+        }
         
-        # Add initial system message - generic greeting if no meal type
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.create_session(session_data)
+        
+        # Add initial system message
         if meal_type:
             greeting = f"Tell me what you ate for {meal_type.lower()}. You can describe it naturally, like 'eggs, toast, and coffee' or 'grilled chicken with rice and broccoli'."
         else:
             greeting = "What did you eat? You can describe it naturally like 'eggs, toast, and coffee' or 'grilled chicken with rice and broccoli'. Also, let me know if this was breakfast, lunch, dinner, or a snack."
         
-        system_msg = ChatMessage(
-            message_id=str(uuid.uuid4()),
-            session_id=session.session_id,
-            role="SYSTEM",
-            content=greeting
-        )
-        db.add(system_msg)
-        db.commit()
+        repo.add_message(session_id, {
+            "role": "SYSTEM",
+            "content": greeting
+        })
         
         return {
-            "session_id": session.session_id,
+            "session_id": session_id,
             "meal_type": meal_type,
             "message": greeting,
             "state": "COLLECTING"
@@ -93,27 +91,21 @@ class ChatSessionService:
         Returns:
             Agent response and updated session state
         """
-        # Get session
-        session = db.query(ChatSession).filter(
-            ChatSession.session_id == session_id,
-            ChatSession.user_id == user_id
-        ).first()
+        # Get session via repository
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.get_session(session_id, user_id)
         
         if not session:
             raise ValueError("Session not found")
         
-        if session.session_state == "SAVED":
+        if session.get("session_state") == "SAVED":
             raise ValueError("Session already saved")
         
         # Add user message
-        user_msg = ChatMessage(
-            message_id=str(uuid.uuid4()),
-            session_id=session_id,
-            role="USER",
-            content=message_text
-        )
-        db.add(user_msg)
-        db.commit()
+        repo.add_message(session_id, {
+            "role": "USER",
+            "content": message_text
+        })
         
         # Get user's active AI configuration
         ai_config = await AIConfigService.get_active_config(db, user_id)
@@ -141,48 +133,42 @@ class ChatSessionService:
         try:
             # Initialize AI Provider via Factory
             ai_service = AIFactory.get_service(
-                ai_config.provider_type.lower(), 
+                ai_config.get("provider_type", "").lower(), 
                 credential, 
-                model_name=ai_config.model_name
+                model_name=ai_config.get("model_name")
             )
             
-            # Get message history for context and convert to standardized objects
-            history = db.query(ChatMessage).filter(
-                ChatMessage.session_id == session_id
-            ).order_by(ChatMessage.created_at).all()
+            # Get message history for context via repository
+            history = repo.get_messages(session_id)
             
             messages = [
                 AIChatMessage(
-                    role=msg.role.lower() if msg.role != "SYSTEM" else "user", 
-                    content=msg.content
+                    role=msg.get("role", "").lower() if msg.get("role") != "SYSTEM" else "user", 
+                    content=str(msg.get("content", ""))
                 )
                 for msg in history
             ]
             
             # Determine agent based on session state
-            if session.session_state == "COLLECTING":
+            if session.get("session_state") == "COLLECTING":
                 response_text = await ChatSessionService._handle_collecting_state(
-                    ai_service, messages, message_text, session
+                    ai_service, messages, message_text, session, repo
                 )
             else:
                 response_text = "Invalid session state"
             
             # Add assistant response
-            assistant_msg = ChatMessage(
-                message_id=str(uuid.uuid4()),
-                session_id=session_id,
-                role="ASSISTANT",
-                content=response_text
-            )
-            db.add(assistant_msg)
-            db.commit()
+            repo.add_message(session_id, {
+                "role": "ASSISTANT",
+                "content": response_text
+            })
             
             return {
                 "session_id": session_id,
                 "message": response_text,
-                "state": session.session_state,
-                "meal_items": session.parsed_meal_items,
-                "nutrition": session.nutrition_data
+                "state": session.get("session_state"),
+                "meal_items": session.get("parsed_meal_items"),
+                "nutrition": session.get("nutrition_data")
             }
         
         except Exception as e:
@@ -194,10 +180,11 @@ class ChatSessionService:
     
     @staticmethod
     async def _handle_collecting_state(
-        ai_service,  # Now accepts any BaseAIService implementation
+        ai_service,
         messages: List[AIChatMessage],
         user_message: str,
-        session: ChatSession
+        session: Dict[str, Any],
+        repo: IChatSessionRepository
     ) -> str:
         """
         Root Agent: Collect meal information via conversation.
@@ -246,9 +233,13 @@ Return JSON with food items:
             
             parsed = await ai_service.parse_meal_description(user_message)
             if parsed.meal_items:
-                # Convert Pydantic objects back to dict for JSON database storage
-                session.parsed_meal_items = [item.dict() for item in parsed.meal_items]
-                session.session_state = "CONFIRMING"
+                # Update session via repository
+                repo.update_session(session.get("session_id"), {
+                    "parsed_meal_items": [item.dict() for item in parsed.meal_items],
+                    "session_state": "CONFIRMING"
+                })
+                session["session_state"] = "CONFIRMING"
+                session["parsed_meal_items"] = [item.dict() for item in parsed.meal_items]
         
         return response_text
     
@@ -331,20 +322,18 @@ Return JSON with food items:
         Returns:
             Parsed meal items with nutrition data
         """
-        session = db.query(ChatSession).filter(
-            ChatSession.session_id == session_id,
-            ChatSession.user_id == user_id
-        ).first()
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.get_session(session_id, user_id)
         
         if not session:
             raise ValueError("Session not found")
         
         return {
             "session_id": session_id,
-            "meal_type": session.meal_type,
-            "meal_items": session.parsed_meal_items or [],
-            "nutrition": session.nutrition_data or {},
-            "state": session.session_state
+            "meal_type": session.get("meal_type"),
+            "meal_items": session.get("parsed_meal_items") or [],
+            "nutrition": session.get("nutrition_data") or {},
+            "state": session.get("session_state")
         }
     
     @staticmethod
@@ -366,40 +355,37 @@ Return JSON with food items:
         Returns:
             Updated session info
         """
-        session = db.query(ChatSession).filter(
-            ChatSession.session_id == session_id,
-            ChatSession.user_id == user_id
-        ).first()
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.get_session(session_id, user_id)
         
         if not session:
             raise ValueError("Session not found")
         
-        # Update meal items
-        session.parsed_meal_items = meal_items
-        db.commit()
+        # Update meal items via repo
+        repo.update_session(session_id, {"parsed_meal_items": meal_items})
         
         # Use AI Config Service to get active configuration
         ai_config = await AIConfigService.get_active_config(db, user_id)
         
         if ai_config:
-            credential = ai_config.base_url if ai_config.provider_type == "LOCAL" else await AIConfigService.get_decrypted_key(db, ai_config)
+            credential = ai_config.get("base_url") if ai_config.get("provider_type") == "LOCAL" else await AIConfigService.get_decrypted_key(db, ai_config)
             
             if credential:
                 ai_service = AIFactory.get_service(
-                    ai_config.provider_type.lower(), 
+                    ai_config.get("provider_type", "").lower(), 
                     credential, 
-                    model_name=ai_config.model_name
+                    model_name=ai_config.get("model_name")
                 )
                 nutrition = await ai_service.get_nutrition_estimate(meal_items)
                 
-                # Store standardized nutrition data
-                session.nutrition_data = nutrition.dict()
-                db.commit()
+                # Store standardized nutrition data via repo
+                repo.update_session(session_id, {"nutrition_data": nutrition.dict()})
+                session["nutrition_data"] = nutrition.dict()
         
         return {
             "session_id": session_id,
-            "meal_items": session.parsed_meal_items,
-            "nutrition": session.nutrition_data
+            "meal_items": meal_items,
+            "nutrition": session.get("nutrition_data")
         }
     
     @staticmethod
@@ -419,22 +405,20 @@ Return JSON with food items:
         Returns:
             Meal entry created
         """
-        session = db.query(ChatSession).filter(
-            ChatSession.session_id == session_id,
-            ChatSession.user_id == user_id
-        ).first()
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.get_session(session_id, user_id)
         
         if not session:
             raise ValueError("Session not found")
         
-        if not session.parsed_meal_items:
+        if not session.get("parsed_meal_items"):
             raise ValueError("No meal items to save")
         
-        # TODO: Save to meal_entries via MealProcessingService
-        # For now, mark session as saved
-        session.session_state = "SAVED"
-        session.completed_at = datetime.utcnow()
-        db.commit()
+        # Mark session as saved via repo
+        repo.update_session(session_id, {
+            "session_state": "SAVED",
+            "completed_at": datetime.utcnow()
+        })
         
         return {
             "session_id": session_id,
@@ -459,17 +443,16 @@ Return JSON with food items:
         Returns:
             Cancelled session info
         """
-        session = db.query(ChatSession).filter(
-            ChatSession.session_id == session_id,
-            ChatSession.user_id == user_id
-        ).first()
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        session = repo.get_session(session_id, user_id)
         
         if not session:
             raise ValueError("Session not found")
         
-        session.session_state = "CANCELLED"
-        session.completed_at = datetime.utcnow()
-        db.commit()
+        repo.update_session(session_id, {
+            "session_state": "CANCELLED",
+            "completed_at": datetime.utcnow()
+        })
         
         return {
             "session_id": session_id,
@@ -494,16 +477,15 @@ Return JSON with food items:
         Returns:
             List of messages with role and content
         """
-        messages = db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.created_at).all()
+        repo = RepositoryFactory.get_chat_session_repository(db)
+        messages = repo.get_messages(session_id)
         
         return [
             {
-                "message_id": msg.message_id,
-                "role": msg.role,
-                "content": msg.content,
-                "created_at": msg.created_at.isoformat()
+                "message_id": msg.get("message_id"),
+                "role": msg.get("role"),
+                "content": msg.get("content"),
+                "created_at": msg.get("created_at").isoformat() if hasattr(msg.get("created_at"), "isoformat") else msg.get("created_at")
             }
             for msg in messages
         ]

@@ -87,12 +87,12 @@ async def get_active_ai_config(
         return None
         
     return AIConfigResponse(
-        provider_type=str(config.provider_type),
-        model_name=config.model_name,
-        base_url=config.base_url,
-        is_active=bool(config.is_active),
-        created_at=config.created_at.isoformat() if config.created_at else "",
-        updated_at=config.updated_at.isoformat() if config.updated_at else ""
+        provider_type=str(config.get("provider_type", "")),
+        model_name=config.get("model_name"),
+        base_url=config.get("base_url"),
+        is_active=bool(config.get("is_active", False)),
+        created_at=config.get("created_at").isoformat() if hasattr(config.get("created_at"), "isoformat") else str(config.get("created_at", "")),
+        updated_at=config.get("updated_at").isoformat() if hasattr(config.get("updated_at"), "isoformat") else str(config.get("updated_at", ""))
     )
 
 
@@ -123,11 +123,14 @@ async def get_gemini_key_status_legacy(
     db: Session = Depends(get_db)
 ):
     config = await AIConfigService.get_active_config(db, user_id)
-    has_key = config is not None and config.provider_type == "GEMINI"
+    has_key = config is not None and config.get("provider_type") == "GEMINI"
+    
+    updated_at = config.get("updated_at") if config else None
+    created_at = config.get("created_at") if config else None
     
     return {
         "has_key": has_key,
-        "last_verified": config.updated_at.isoformat() if (config and has_key and config.updated_at) else None,
-        "created_at": config.created_at.isoformat() if (config and has_key and config.created_at) else None,
+        "last_verified": updated_at.isoformat() if (has_key and hasattr(updated_at, "isoformat")) else str(updated_at) if (has_key and updated_at) else None,
+        "created_at": created_at.isoformat() if (has_key and hasattr(created_at, "isoformat")) else str(created_at) if (has_key and created_at) else None,
         "setup_required": not has_key
     }

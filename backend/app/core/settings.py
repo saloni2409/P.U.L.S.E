@@ -8,7 +8,9 @@ class Settings(BaseSettings):
     """Application configuration from environment variables"""
     
     # Database
-    database_url: str = "sqlite:///./pulse.db"
+    database_url: str = "postgresql://postgres:postgres@localhost:5432/pulse"
+    db_type: str = "SQL" # SQL or FIRESTORE
+    firestore_project_id: str = ""
     
     # JWT
     secret_key: str = "your-secret-key-change-in-production"
