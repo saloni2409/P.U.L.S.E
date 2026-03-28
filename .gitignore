@@ -73,8 +73,8 @@ node_modules/
 out/
 .pnp
 .pnp.js
-package-lock.json
-pnpm-lock.yaml
+# package-lock.json (Keep - recommended to commit)
+# pnpm-lock.yaml (Keep - recommended to commit)
 coverage/
 
 # -----------------------------------------------------------------------------
