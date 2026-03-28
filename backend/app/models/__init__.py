@@ -24,6 +24,7 @@ class User(Base):
     macro_targets = relationship("MacroTargets", back_populates="user", cascade="all, delete-orphan")
     meal_entries = relationship("MealEntry", back_populates="user", cascade="all, delete-orphan")
     daily_summaries = relationship("DailyNutritionSummary", back_populates="user", cascade="all, delete-orphan")
+    gemini_key = relationship("UserGeminiKey", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 
 class MacroTargets(Base):
@@ -138,3 +139,69 @@ class DailyNutritionSummary(Base):
     __table_args__ = (
         UniqueConstraint('user_id', 'date', name='_user_date_uc'),
     )
+
+
+class UserGeminiKey(Base):
+    """User's encrypted Google Gemini API key for BYOK (Bring Your Own Key) feature"""
+    __tablename__ = "user_gemini_keys"
+    
+    key_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.user_id"), unique=True, nullable=False, index=True)
+    
+    # Encrypted key stored at rest - never stored in plaintext
+    encrypted_key = Column(Text, nullable=False)
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_verified_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="gemini_key")
+    
+    def __repr__(self):
+        return f"<UserGeminiKey user_id={self.user_id}>"
+
+
+class ChatSession(Base):
+    """Chat session for meal logging conversation"""
+    __tablename__ = "chat_sessions"
+    
+    session_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, ForeignKey("users.user_id"), nullable=False, index=True)
+    meal_type = Column(String, nullable=True)  # BREAKFAST, LUNCH, DINNER, SNACK - extracted from conversation
+    meal_time = Column(String, nullable=True)  # HH:MM format - extracted from conversation
+    session_state = Column(String, default="COLLECTING")  # COLLECTING, CONFIRMING, SAVED, CANCELLED
+    
+    # Parsed meal data (JSON) - populated by agents
+    parsed_meal_items = Column(JSON, default=[])  # List of meal items
+    nutrition_data = Column(JSON, default={})  # Aggregated nutrition
+    
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("User")
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    """Individual message in a chat session"""
+    __tablename__ = "chat_messages"
+    
+    message_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    session_id = Column(String, ForeignKey("chat_sessions.session_id"), nullable=False, index=True)
+    
+    role = Column(String, nullable=False)  # USER, ASSISTANT, SYSTEM
+    content = Column(Text, nullable=False)
+    
+    # Optional: structured data for non-text messages
+    message_data = Column(JSON, default={})  # Can store agent decisions, parsed data, etc.
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    session = relationship("ChatSession", back_populates="messages")

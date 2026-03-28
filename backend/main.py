@@ -10,6 +10,8 @@ from app.routes.meals import router as meals_router
 from app.routes.nutrition import router as nutrition_router
 from app.routes.foods import router as foods_router
 from app.routes.meals_ai import router as meals_ai_router
+from app.routes.settings import router as settings_router
+from app.routes.chat import router as chat_router
 
 # Define the security scheme
 security_schemes = {
@@ -52,6 +54,8 @@ app.include_router(meals_router)
 app.include_router(nutrition_router)
 app.include_router(foods_router)
 app.include_router(meals_ai_router)
+app.include_router(settings_router)
+app.include_router(chat_router)
 
 
 @app.get("/")

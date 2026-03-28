@@ -160,13 +160,39 @@ export default function MealsPage() {
         )}
 
         {/* Add New Meal Button */}
-        <div className="sticky bottom-4">
+        <div className="sticky bottom-4 space-y-3">
           <Link
             href="/meals/new"
             className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white font-bold py-3 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center space-x-2"
           >
             <span>+ Add Meal</span>
           </Link>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/chat?meal_type=BREAKFAST"
+              className="btn-secondary text-center py-3 rounded-xl font-semibold hover:bg-neutral-200 transition-colors"
+            >
+              🍳 Breakfast Chat
+            </Link>
+            <Link
+              href="/chat?meal_type=LUNCH"
+              className="btn-secondary text-center py-3 rounded-xl font-semibold hover:bg-neutral-200 transition-colors"
+            >
+              🥗 Lunch Chat
+            </Link>
+            <Link
+              href="/chat?meal_type=DINNER"
+              className="btn-secondary text-center py-3 rounded-xl font-semibold hover:bg-neutral-200 transition-colors"
+            >
+              🍽️ Dinner Chat
+            </Link>
+            <Link
+              href="/chat?meal_type=SNACK"
+              className="btn-secondary text-center py-3 rounded-xl font-semibold hover:bg-neutral-200 transition-colors"
+            >
+              🍪 Snack Chat
+            </Link>
+          </div>
         </div>
       </div>
     </AuthLayout>

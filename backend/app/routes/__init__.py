@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 from app.schemas import TokenRequest, TokenResponse, UserCreate, UserResponse
 from app.services import UserService
+from app.routes import settings
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
