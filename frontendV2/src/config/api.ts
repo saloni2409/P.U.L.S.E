@@ -2,8 +2,27 @@
  * API Configuration
  */
 
+/**
+ * The base URL for all API requests to our FastAPI backend.
+ * In development, it defaults to localhost:8000.
+ * In production, it uses the environment variable NEXT_PUBLIC_API_URL 
+ * (which you will set to your Cloud Run URL).
+ */
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'
 
+/**
+ * Useful Production Constants (Commented out for reference)
+ * 
+ * // export const API_TIMEOUT = 10000;                        // Max wait time for API (10 seconds)
+ * // export const API_RETRY_COUNT = 3;                         // Times to retry a failed request
+ * // export const AUTH_TOKEN_KEY = 'pulse_auth_token';        // Key name for local storage
+ * // export const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+ */
+
+/**
+ * A centralized map of every endpoint our application can talk to.
+ * This makes it easy to update URLs in one place if the backend changes.
+ */
 export const API_ENDPOINTS = {
   // Auth
   AUTH_REGISTER: '/auth/register',
@@ -38,6 +57,11 @@ export const API_ENDPOINTS = {
   NUTRITION_RANGE: '/nutrition/range',
 } as const
 
+/**
+ * Query Keys are used by "React Query" to cache your data.
+ * Think of these like 'ID tags' for your data so the app knows 
+ * when to refresh a list or when to use a saved version.
+ */
 export const QUERY_KEYS = {
   // Auth
   AUTH: ['auth'],
