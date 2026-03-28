@@ -43,5 +43,8 @@ def get_db():
 
 
 def init_db():
-    """Initialize database by creating all tables"""
-    Base.metadata.create_all(bind=engine)
+    """Initialize database by creating all tables for SQL backend"""
+    if settings.db_type == "SQL":
+        # Import models here to ensure they are registered with Base.metadata
+        from app import models
+        Base.metadata.create_all(bind=engine)

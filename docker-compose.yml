@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: pulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8080"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres_password@db:5432/pulse
+      - DB_TYPE=SQL
+      - ENV_NAME=development
+      - SECRET_KEY=your-secret-key-change-in-production
+      - ALGORITHM=HS256
+      - ENCRYPTION_KEY=n0kLfMa8Etn3meMyO-VzJOOUHwTnCemOAzwqE7667J0=
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
